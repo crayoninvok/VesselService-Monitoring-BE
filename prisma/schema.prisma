@@ -1,0 +1,271 @@
+// This is your Prisma schema file for VessM application
+// Using Supabase provider for PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User model - base model for all user types
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  phone     String?
+  name      String
+  role      UserRole  @default(VENDOR)
+  isActive  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lastLogin DateTime?
+
+  // Relations
+  superAdmin    SuperAdmin?
+  shipAdmin     ShipAdmin?
+  vendor        Vendor?
+  notifications Notification[]
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  SHIP_ADMIN
+  VENDOR
+}
+
+// SuperAdmin model - for Ship Owners and Superintendents
+model SuperAdmin {
+  id          String  @id @default(uuid())
+  userId      String  @unique
+  companyName String
+  position    String?
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations - what SuperAdmin can manage
+  vessels        Vessel[]
+  createdVendors Vendor[]
+}
+
+// ShipAdmin model - for Ship Officers
+model ShipAdmin {
+  id       String @id @default(uuid())
+  userId   String @unique
+  vesselId String
+  position String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vessel   Vessel @relation(fields: [vesselId], references: [id])
+
+  // Relations
+  maintenanceReports MaintenanceReport[]
+}
+
+// Vendor model - for service providers
+model Vendor {
+  id                String      @id @default(uuid())
+  userId            String      @unique
+  companyName       String
+  personInCharge    String
+  expertise         String[]
+  verificationToken String?
+  isVerified        Boolean     @default(false)
+  isApproved        Boolean     @default(false)
+  approvedById      String?
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approvedBy        SuperAdmin? @relation(fields: [approvedById], references: [id])
+
+  // Relations
+  repairJobs RepairJob[]
+}
+
+// Vessel model
+model Vessel {
+  id           String     @id @default(uuid())
+  name         String
+  imo          String     @unique
+  type         String
+  flag         String
+  buildYear    Int
+  grossTonnage Float?
+  ownerId      String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  owner        SuperAdmin @relation(fields: [ownerId], references: [id])
+
+  // Relations
+  documents          Document[]
+  aisData            AISData[]
+  equipments         Equipment[]
+  maintenanceReports MaintenanceReport[]
+  shipAdmins         ShipAdmin[]
+}
+
+// AIS Data model for dynamic vessel position tracking
+model AISData {
+  id          String    @id @default(uuid())
+  vesselId    String
+  timestamp   DateTime  @default(now())
+  latitude    Float
+  longitude   Float
+  speed       Float?
+  course      Float?
+  destination String?
+  eta         DateTime?
+  vessel      Vessel    @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+}
+
+// Document model for vessel documentation
+model Document {
+  id           String       @id @default(uuid())
+  vesselId     String
+  title        String
+  documentType DocumentType
+  fileUrl      String
+  uploadedAt   DateTime     @default(now())
+  expiryDate   DateTime?
+  isValid      Boolean      @default(true)
+  vessel       Vessel       @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+}
+
+enum DocumentType {
+  CERTIFICATE
+  MANUAL
+  DRAWING
+  REPORT
+  OTHER
+}
+
+// Equipment model
+model Equipment {
+  id                 String          @id @default(uuid())
+  vesselId           String
+  name               String
+  category           String
+  manufacturer       String?
+  model              String?
+  serialNumber       String?
+  installationDate   DateTime?
+  status             EquipmentStatus @default(NORMAL)
+  lastInspectionDate DateTime?
+  nextInspectionDate DateTime?
+  vessel             Vessel          @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+
+  // Relations
+  repairJobs RepairJob[]
+}
+
+enum EquipmentStatus {
+  NORMAL
+  DAMAGED
+  MUST_REPAIR
+}
+
+// Maintenance Report model
+model MaintenanceReport {
+  id          String                @id @default(uuid())
+  vesselId    String
+  createdById String
+  reportType  MaintenanceReportType
+  title       String
+  description String
+  reportDate  DateTime
+  fileUrl     String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  vessel      Vessel                @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  createdBy   ShipAdmin             @relation(fields: [createdById], references: [id])
+}
+
+enum MaintenanceReportType {
+  SERVICE
+  SURVEY
+  DOCKING
+  INSPECTION
+  OTHER
+}
+
+// Repair Job model
+model RepairJob {
+  id             String       @id @default(uuid())
+  equipmentId    String
+  vendorId       String?
+  title          String
+  description    String
+  status         RepairStatus @default(WAITING_VENDOR)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  startDate      DateTime?
+  completionDate DateTime?
+  equipment      Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  vendor         Vendor?      @relation(fields: [vendorId], references: [id])
+
+  // Relations
+  statusUpdates  StatusUpdate[]
+  serviceReports ServiceReport[]
+  jobPhotos      JobPhoto[]
+}
+
+enum RepairStatus {
+  WAITING_VENDOR
+  PROCESS
+  TECHNICIAN_ON_BOARD
+  REPAIRING
+  SUCCESS
+  STILL_DAMAGED
+  WAITING_SPAREPARTS
+  CANCELLED
+}
+
+// Status Update model for tracking repair progress
+model StatusUpdate {
+  id          String       @id @default(uuid())
+  repairJobId String
+  status      RepairStatus
+  notes       String?
+  updatedAt   DateTime     @default(now())
+  repairJob   RepairJob    @relation(fields: [repairJobId], references: [id], onDelete: Cascade)
+}
+
+// Service Report model
+model ServiceReport {
+  id                  String    @id @default(uuid())
+  repairJobId         String
+  reportUrl           String
+  hasCaptainSignature Boolean   @default(false)
+  uploadedAt          DateTime  @default(now())
+  repairJob           RepairJob @relation(fields: [repairJobId], references: [id], onDelete: Cascade)
+}
+
+// Job Photo model for documentation
+model JobPhoto {
+  id          String    @id @default(uuid())
+  repairJobId String
+  photoUrl    String
+  description String?
+  uploadedAt  DateTime  @default(now())
+  repairJob   RepairJob @relation(fields: [repairJobId], references: [id], onDelete: Cascade)
+}
+
+// Notification model
+model Notification {
+  id           String           @id @default(uuid())
+  userId       String
+  title        String
+  message      String
+  type         NotificationType
+  isRead       Boolean          @default(false)
+  relatedJobId String?
+  createdAt    DateTime         @default(now())
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum NotificationType {
+  JOB_ASSIGNED
+  STATUS_CHANGED
+  DOCUMENT_UPLOADED
+  APPROVAL_NEEDED
+  GENERAL
+}
