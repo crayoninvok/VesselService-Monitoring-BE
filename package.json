@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-     "build": "tsc && cp -rv public dist && cp -rv src/templates dist",
+    "build": "tsc && cp -rv public dist && cp -rv src/templates dist",
     "start": "npm run build && node dist/index.js",
     "dev": "ts-node-dev src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -15,10 +15,14 @@
   "description": "",
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
+    "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
+    "@types/handlebars": "^4.0.40",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.13.13",
+    "@types/nodemailer": "^6.4.17",
+    "@types/nodemailer-express-handlebars": "^4.0.5",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.2"
   },
@@ -27,12 +31,15 @@
     "@supabase/supabase-js": "^2.49.2",
     "@types/multer": "^1.4.12",
     "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "handlebars": "^4.7.8",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.2",
+    "nodemailer": "^6.10.0",
     "prisma": "^6.5.0"
   }
 }

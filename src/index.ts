@@ -1,14 +1,16 @@
 import dotenv from "dotenv";
 dotenv.config();
 import express from "express";
+import cookieParser from "cookie-parser";
 import cors from "cors";
+import { AuthRouter } from "./routers/auth.router";
 
-
-const PORT: number = parseInt(process.env.PORT || "8000");
+const PORT: number = 8000;
 const base_url_fe = process.env.BASE_URL_FE;
-
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
+
 app.use(
   cors({
     origin: base_url_fe,
@@ -18,22 +20,13 @@ app.use(
   })
 );
 
-// Initialize all routers
-//const authRouter = new AuthRouter();
+const authRouter = new AuthRouter();
+
+app.use("/api/auth/", authRouter.getRouter()); // 
 
 
-// Register all routes
-//app.use("/api/auth", authRouter.getRouter());
-
-
-// Default route
 app.get("/api", (req, res) => {
-  res.send("Welcome to the VessM API!");
-});
-
-// Health check endpoint
-app.get("/api/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.send("Welcome to the API!");
 });
 
 app.listen(PORT, () => {
