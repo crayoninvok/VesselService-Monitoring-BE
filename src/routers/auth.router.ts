@@ -16,6 +16,10 @@ export class AuthRouter {
   }
 
   private initializeRoutes() {
+    this.router.post(
+      "/create/super-admin",
+      this.authController.createSuperAdmin as unknown as RequestHandler
+    );
     // Vendor routes
     this.router.post(
       "/register/vendor",

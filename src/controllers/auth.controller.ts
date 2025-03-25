@@ -8,6 +8,60 @@ import emailService from "../services/email.service";
 const prisma = new PrismaClient();
 
 export class AuthController {
+  /**
+   * Create a super admin account
+   * This should typically be restricted or only used in secure environments
+   */
+  async createSuperAdmin(req: Request, res: Response) {
+    try {
+      const { email, password, name, phone, companyName, position } = req.body;
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUser) {
+        return res
+          .status(400)
+          .json({ message: "User with this email already exists" });
+      }
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      const result = await prisma.$transaction(async (tx) => {
+        // Create user
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name,
+            phone,
+            role: UserRole.SUPER_ADMIN,
+            isActive: true, 
+          },
+        });
+        const superAdmin = await tx.superAdmin.create({
+          data: {
+            userId: user.id,
+            companyName,
+            position,
+          },
+        });
+
+        return { user, superAdmin };
+      });
+
+      return res.status(201).json({
+        message: "Super Admin created successfully",
+        userId: result.user.id,
+        superAdminId: result.superAdmin.id,
+      });
+    } catch (error) {
+      console.error("Create super admin error:", error);
+      return res
+        .status(500)
+        .json({ message: "Server error during Super Admin creation" });
+    }
+  }
+  
   // Register a new vendor
   async registerVendor(req: Request, res: Response) {
     try {
