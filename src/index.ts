@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { AuthRouter } from "./routers/auth.router";
 import { VesselRouter } from "./routers/vessel.router";
+import { UserRouter } from "./routers/user.router";
 import initSchedulers from "./schedulers/ais-update.scheduler";
 
 const PORT: number = 8000;
@@ -26,12 +27,14 @@ app.use(
 // Initialize routers
 const authRouter = new AuthRouter();
 const vesselRouter = new VesselRouter();
+const userRouter = new UserRouter();
 
 // Initialize schedulers for AIS data
 initSchedulers();
 
 app.use("/api/auth/", authRouter.getRouter());
 app.use("/api/vessels/", vesselRouter.getRouter());
+app.use("/api/users/", userRouter.getRouter());
 
 app.get("/api", (req, res) => {
   res.send("Welcome to the API!");

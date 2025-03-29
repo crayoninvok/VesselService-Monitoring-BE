@@ -23,6 +23,7 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   lastLogin DateTime?
+  avatarUrl String    @default("https://vessel-mgmt-public.s3.ap-southeast-1.amazonaws.com/default-profile.png") // Default profile picture
 
   // Relations
   superAdmin    SuperAdmin?
@@ -74,6 +75,7 @@ model Vendor {
   isVerified        Boolean     @default(false)
   isApproved        Boolean     @default(false)
   approvedById      String?
+  logoUrl           String      @default("https://vessel-mgmt-public.s3.ap-southeast-1.amazonaws.com/default-company-logo.png") // Default company logo
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   approvedBy        SuperAdmin? @relation(fields: [approvedById], references: [id])
 
@@ -91,6 +93,7 @@ model Vessel {
   buildYear    Int
   grossTonnage Float?
   ownerId      String
+  imageUrl     String     @default("https://vessel-mgmt-public.s3.ap-southeast-1.amazonaws.com/default-vessel.png") // Default vessel image
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   owner        SuperAdmin @relation(fields: [ownerId], references: [id])
