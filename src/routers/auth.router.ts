@@ -55,6 +55,21 @@ export class AuthRouter {
       this.authController.createShipAdmin as unknown as RequestHandler
     );
 
+    // Routes for SuperAdmin to create users
+    this.router.post(
+      "/create/vendor",
+      this.authMiddleware.verifyToken as unknown as RequestHandler,
+      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
+      this.authController.createVendorByAdmin as unknown as RequestHandler
+    );
+
+    this.router.post(
+      "/create/officer",
+      this.authMiddleware.verifyToken as unknown as RequestHandler,
+      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
+      this.authController.createOfficerByAdmin as unknown as RequestHandler
+    );
+
     // Generic token verification
     this.router.get(
       "/verify-token",

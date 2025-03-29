@@ -469,4 +469,187 @@ export class AuthController {
         .json({ message: "Server error during Ship Admin creation" });
     }
   }
+  async createVendorByAdmin(req: Request, res: Response) {
+    try {
+      const {
+        email,
+        password,
+        name,
+        phone,
+        companyName,
+        personInCharge,
+        expertise,
+      } = req.body;
+  
+      // Get current user from token to verify they're a SuperAdmin
+      const authUser = req.user;
+  
+      if (!authUser || authUser.role !== UserRole.SUPER_ADMIN) {
+        return res.status(403).json({
+          message: "Unauthorized. Only Super Admins can create Vendor accounts",
+        });
+      }
+  
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+  
+      if (existingUser) {
+        return res
+          .status(400)
+          .json({ message: "User with this email already exists" });
+      }
+  
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+  
+      // Create user and vendor in a transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Create user
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name,
+            phone,
+            role: UserRole.VENDOR,
+            isActive: true, // Active by default when created by SuperAdmin
+          },
+        });
+  
+        // Create vendor profile
+        const vendor = await tx.vendor.create({
+          data: {
+            userId: user.id,
+            companyName,
+            personInCharge,
+            expertise: Array.isArray(expertise) ? expertise : [expertise],
+            isVerified: true, // Verified by default when created by SuperAdmin
+            isApproved: true, // Approved by default when created by SuperAdmin
+            approvedById: authUser.superAdminId, // Track which admin approved this vendor
+          },
+        });
+  
+        return { user, vendor };
+      });
+  
+      // Create notification for the new vendor
+      await prisma.notification.create({
+        data: {
+          userId: result.user.id,
+          title: "Account Created",
+          message: `Your vendor account has been created by ${authUser.email}. You can now log in to the system.`,
+          type: "GENERAL",
+        },
+      });
+  
+      return res.status(201).json({
+        message: "Vendor created successfully by Super Admin",
+        userId: result.user.id,
+        vendorId: result.vendor.id,
+      });
+    } catch (error) {
+      console.error("Create vendor by admin error:", error);
+      return res
+        .status(500)
+        .json({ message: "Server error during Vendor creation" });
+    }
+  }
+  /**
+ * Create a ship officer (ShipAdmin) account by SuperAdmin
+ * Only SuperAdmins can use this endpoint
+ */
+async createOfficerByAdmin(req: Request, res: Response) {
+  try {
+    const { email, password, name, phone, vesselId, position } = req.body;
+
+    // Get current user from token to verify they're a SuperAdmin
+    const authUser = req.user;
+
+    if (!authUser || authUser.role !== UserRole.SUPER_ADMIN) {
+      return res.status(403).json({
+        message: "Unauthorized. Only Super Admins can create Ship Officer accounts",
+      });
+    }
+
+    // Check if vessel exists and belongs to the super admin
+    const vessel = await prisma.vessel.findFirst({
+      where: {
+        id: vesselId,
+        ownerId: authUser.superAdminId,
+      },
+    });
+
+    if (!vessel) {
+      return res
+        .status(404)
+        .json({ message: "Vessel not found or you don't have permission" });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return res
+        .status(400)
+        .json({ message: "User with this email already exists" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create user and ship admin in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create user
+      const user = await tx.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          phone,
+          role: UserRole.SHIP_ADMIN,
+          isActive: true, // Ship Officers are active by default when created by SuperAdmin
+        },
+      });
+
+      // Create ship admin profile
+      const shipAdmin = await tx.shipAdmin.create({
+        data: {
+          userId: user.id,
+          vesselId,
+          position,
+        },
+      });
+
+      return { user, shipAdmin };
+    });
+
+    // Create notification for the new ship officer
+    await prisma.notification.create({
+      data: {
+        userId: result.user.id,
+        title: "Account Created",
+        message: `Your Ship Officer account has been created by ${authUser.email} for vessel ${vessel.name}. You can now log in to the system.`,
+        type: "GENERAL",
+      },
+    });
+
+    return res.status(201).json({
+      message: "Ship Officer created successfully",
+      userId: result.user.id,
+      shipAdminId: result.shipAdmin.id,
+      vesselName: vessel.name,
+    });
+  } catch (error) {
+    console.error("Create ship officer error:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error during Ship Officer creation" });
+  }
+}
 }
