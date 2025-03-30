@@ -1,4 +1,4 @@
-// src/index.ts (or wherever your main app is)
+// src/index.ts - Update with equipment router
 import dotenv from "dotenv";
 dotenv.config();
 import express from "express";
@@ -7,6 +7,7 @@ import cors from "cors";
 import { AuthRouter } from "./routers/auth.router";
 import { VesselRouter } from "./routers/vessel.router";
 import { UserRouter } from "./routers/user.router";
+import { EquipmentRouter } from "./routers/equipment.router"; // Import the new Equipment Router
 import initSchedulers from "./schedulers/ais-update.scheduler";
 
 const PORT: number = 8000;
@@ -28,6 +29,7 @@ app.use(
 const authRouter = new AuthRouter();
 const vesselRouter = new VesselRouter();
 const userRouter = new UserRouter();
+const equipmentRouter = new EquipmentRouter(); // Initialize the new Equipment Router
 
 // Initialize schedulers for AIS data
 initSchedulers();
@@ -35,6 +37,7 @@ initSchedulers();
 app.use("/api/auth/", authRouter.getRouter());
 app.use("/api/vessels/", vesselRouter.getRouter());
 app.use("/api/users/", userRouter.getRouter());
+app.use("/api/equipment/", equipmentRouter.getRouter()); // Register the Equipment Router
 
 app.get("/api", (req, res) => {
   res.send("Welcome to the API!");

@@ -93,9 +93,10 @@ model Vessel {
   buildYear    Int
   grossTonnage Float?
   ownerId      String
-  imageUrl     String     @default("https://vessel-mgmt-public.s3.ap-southeast-1.amazonaws.com/default-vessel.png") // Default vessel image
+  imageUrl     String     @default("https://vessel-mgmt-public.s3.ap-southeast-1.amazonaws.com/default-vessel.png")
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  isActive     Boolean    @default(true) // Added field for soft delete
   owner        SuperAdmin @relation(fields: [ownerId], references: [id])
 
   // Relations
@@ -104,6 +105,17 @@ model Vessel {
   equipments         Equipment[]
   maintenanceReports MaintenanceReport[]
   shipAdmins         ShipAdmin[]
+  images             VesselImage[]
+}
+
+model VesselImage {
+  id        String   @id @default(uuid())
+  vesselId  String
+  imageUrl  String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  vessel    Vessel   @relation(fields: [vesselId], references: [id], onDelete: Cascade)
 }
 
 // AIS Data model for dynamic vessel position tracking

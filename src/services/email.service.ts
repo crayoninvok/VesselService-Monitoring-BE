@@ -53,13 +53,15 @@ export class EmailService {
     name: string,
     token: string
   ): Promise<any> {
-    const baseUrl = process.env.BASE_URL_BE || "http://localhost:8000";
+    // Fix: Remove trailing slashes from base URL to prevent double slash
+    const baseUrl = (process.env.BASE_URL_BE || "http://localhost:8000").replace(/\/$/, "");
     const verificationLink = `${baseUrl}/api/auth/verify-email/${token}`;
 
     // Compile the email template
     const context = {
       name,
       verificationLink,
+      currentYear: new Date().getFullYear(),
       companyName: "Vessel Monitor System",
       supportEmail: process.env.SUPPORT_EMAIL || "support@vesselmonitor.com",
     };
@@ -83,6 +85,31 @@ export class EmailService {
       throw error;
     }
   }
+  async sendVendorApprovalEmail(email: string, name: string, companyName: string): Promise<any> {
+    const frontendUrl = (process.env.BASE_URL_FE || "http://localhost:3000").replace(/\/$/, "");
+    const loginLink = `${frontendUrl}/login`;
+  
+    const context = {
+      name,
+      companyName,
+      loginLink,
+      currentYear: new Date().getFullYear(),
+      supportEmail: process.env.SUPPORT_EMAIL || "support@vesselmonitor.com",
+    };
+  
+    const html = await this.compileTemplate("vendor-approval", context);
+  
+    const mailOptions = {
+      from: `"Vessel Monitor System" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Your Account has been Approved - Vessel Monitor System",
+      html,
+    };
+  
+    const info = await this.transporter.sendMail(mailOptions);
+    console.log("Approval email sent: %s", info.messageId);
+    return info;
+  }
 
   /**
    * Send a password reset email to a user
@@ -96,13 +123,15 @@ export class EmailService {
     name: string,
     token: string
   ): Promise<any> {
-    const baseUrl = process.env.BASE_URL_BE || "http://localhost:8000";
+    // Fix: Remove trailing slashes from base URL to prevent double slash
+    const baseUrl = (process.env.BASE_URL_BE || "http://localhost:8000").replace(/\/$/, "");
     const resetLink = `${baseUrl}/api/auth/reset-password/${token}`;
 
     // Compile the email template
     const context = {
       name,
       resetLink,
+      currentYear: new Date().getFullYear(),
       companyName: "Vessel Monitor System",
       supportEmail: process.env.SUPPORT_EMAIL || "support@vesselmonitor.com",
     };
