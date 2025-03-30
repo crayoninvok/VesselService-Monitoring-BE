@@ -1,12 +1,9 @@
-import { Router, Request, Response } from "express";
-import { RequestHandler } from "express-serve-static-core";
+// src/routers/vessel.router.ts
+import { Router, Request, Response, NextFunction } from "express";
 import { VesselController } from "../controllers/vessel.controller";
+import { RequestHandler } from "express-serve-static-core";
 import { AuthMiddleware } from "../middleware/auth.verify";
-import {
-  vesselValidationSchema,
-  vesselUpdateValidationSchema,
-} from "../helpers/vessel.validation";
-import aisService from "../services/ais.service";
+import { uploadVesselImages, handleMulterError } from "../middleware/multer.config";
 
 export class VesselRouter {
   private router: Router;
@@ -21,138 +18,127 @@ export class VesselRouter {
   }
 
   private initializeRoutes() {
-    // Create a new vessel (SuperAdmin only)
+    // Vessel management routes
     this.router.post(
       "/",
-      this.authMiddleware.verifyToken as unknown as RequestHandler,
-      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
-      this.authMiddleware.validateRequest(
-        vesselValidationSchema
-      ) as unknown as RequestHandler,
-      this.vesselController.createVessel as unknown as RequestHandler
+      this.authMiddleware.verifyToken as RequestHandler,
+      this.authMiddleware.isSuperAdmin as RequestHandler,
+      uploadVesselImages as RequestHandler, // Changed to support multiple images
+      handleMulterError as RequestHandler,
+      this.vesselController.createVessel as RequestHandler
     );
 
-    // Get all vessels for logged-in SuperAdmin
     this.router.get(
       "/",
-      this.authMiddleware.verifyToken as unknown as RequestHandler,
-      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
-      this.vesselController.getVessels as unknown as RequestHandler
+      this.authMiddleware.verifyToken as RequestHandler,
+      this.authMiddleware.isSuperAdmin as RequestHandler,
+      this.vesselController.getVessels as RequestHandler
     );
 
-    // Get vessel by ID
     this.router.get(
       "/:id",
-      this.authMiddleware.verifyToken as unknown as RequestHandler,
-      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
-      this.vesselController.getVesselById as unknown as RequestHandler
+      this.authMiddleware.verifyToken as RequestHandler,
+      this.authMiddleware.isSuperAdmin as RequestHandler,
+      this.vesselController.getVesselById as RequestHandler
     );
 
-    // Update vessel
     this.router.put(
       "/:id",
-      this.authMiddleware.verifyToken as unknown as RequestHandler,
-      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
-      this.authMiddleware.validateRequest(
-        vesselUpdateValidationSchema
-      ) as unknown as RequestHandler,
-      this.vesselController.updateVessel as unknown as RequestHandler
+      this.authMiddleware.verifyToken as RequestHandler,
+      this.authMiddleware.isSuperAdmin as RequestHandler,
+      uploadVesselImages as RequestHandler, // Changed to support multiple images
+      handleMulterError as RequestHandler,
+      this.vesselController.updateVessel as RequestHandler
     );
 
-    // Delete vessel
     this.router.delete(
       "/:id",
-      this.authMiddleware.verifyToken as unknown as RequestHandler,
-      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
-      this.vesselController.deleteVessel as unknown as RequestHandler
+      this.authMiddleware.verifyToken as RequestHandler,
+      this.authMiddleware.isSuperAdmin as RequestHandler,
+      this.vesselController.softDeleteVessel as RequestHandler
     );
 
-    // Get latest AIS data for a vessel (accessible by both SuperAdmin and ShipAdmin)
-    this.router.get(
-      "/:id/ais",
-      this.authMiddleware.verifyToken as unknown as RequestHandler,
-      this.authMiddleware.isAdminLevel as unknown as RequestHandler,
-      this.vesselController.getLatestAISData as unknown as RequestHandler
-    );
-
-    // Manually trigger AIS data update (SuperAdmin only)
+    // Vessel images routes
     this.router.post(
-      "/trigger-ais-update",
-      this.authMiddleware.verifyToken as unknown as RequestHandler,
-      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
-      this.handleTriggerAISUpdate as unknown as RequestHandler
+      "/:id/upload-images",
+      this.authMiddleware.verifyToken as RequestHandler,
+      this.authMiddleware.isSuperAdmin as RequestHandler,
+      uploadVesselImages as RequestHandler, // Changed to support multiple images
+      handleMulterError as RequestHandler,
+      this.vesselController.uploadVesselImages as RequestHandler // New method name
     );
 
-    // Test MyShipTracking API endpoint (SuperAdmin only) - for troubleshooting
     this.router.get(
-      "/test-api/:imo",
-      this.authMiddleware.verifyToken as unknown as RequestHandler,
-      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
-      this.handleTestAPI as unknown as RequestHandler
+      "/:id/images",
+      this.authMiddleware.verifyToken as RequestHandler,
+      ((req: Request, res: Response, next: NextFunction) => {
+        // Both SuperAdmin and ShipAdmin can view vessel images
+        if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'SHIP_ADMIN')) {
+          next();
+        } else {
+          res.status(403).json({ success: false, message: 'Access denied' });
+        }
+      }) as RequestHandler,
+      this.vesselController.getVesselImages as RequestHandler
+    );
+
+    this.router.delete(
+      "/:vesselId/images/:imageId",
+      this.authMiddleware.verifyToken as RequestHandler,
+      this.authMiddleware.isSuperAdmin as RequestHandler,
+      this.vesselController.deleteVesselImage as RequestHandler
+    );
+
+    this.router.patch(
+      "/:vesselId/images/:imageId/set-main",
+      this.authMiddleware.verifyToken as RequestHandler,
+      this.authMiddleware.isSuperAdmin as RequestHandler,
+      this.vesselController.setMainVesselImage as RequestHandler
+    );
+
+    // AIS data routes
+    this.router.post(
+      "/:id/ais",
+      this.authMiddleware.verifyToken as RequestHandler,
+      ((req: Request, res: Response, next: NextFunction) => {
+        // Both SuperAdmin and ShipAdmin can add AIS data
+        if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'SHIP_ADMIN')) {
+          next();
+        } else {
+          res.status(403).json({ success: false, message: 'Access denied' });
+        }
+      }) as RequestHandler,
+      this.vesselController.addAISData as RequestHandler
+    );
+
+    this.router.put(
+      "/ais/:aisId",
+      this.authMiddleware.verifyToken as RequestHandler,
+      ((req: Request, res: Response, next: NextFunction) => {
+        // Both SuperAdmin and ShipAdmin can update AIS data
+        if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'SHIP_ADMIN')) {
+          next();
+        } else {
+          res.status(403).json({ success: false, message: 'Access denied' });
+        }
+      }) as RequestHandler,
+      this.vesselController.updateAISData as RequestHandler
+    );
+
+    this.router.get(
+      "/:id/ais/history",
+      this.authMiddleware.verifyToken as RequestHandler,
+      ((req: Request, res: Response, next: NextFunction) => {
+        // Both SuperAdmin and ShipAdmin can view AIS history
+        if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'SHIP_ADMIN')) {
+          next();
+        } else {
+          res.status(403).json({ success: false, message: 'Access denied' });
+        }
+      }) as RequestHandler,
+      this.vesselController.getAISHistory as RequestHandler
     );
   }
-
-  // Handler for manually triggering AIS updates
-  private handleTriggerAISUpdate = (req: Request, res: Response) => {
-    try {
-      aisService
-        .updateAllVesselsAISData()
-        .then(() => {
-          res.status(200).json({
-            success: true,
-            message: "AIS data update triggered successfully",
-          });
-        })
-        .catch((error: any) => {
-          console.error("Error triggering AIS update:", error);
-          res.status(500).json({
-            success: false,
-            message: "Error triggering AIS update",
-          });
-        });
-    } catch (error) {
-      console.error("Error in handleTriggerAISUpdate:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-      });
-    }
-  };
-
-  // Handler for testing MyShipTracking API (for troubleshooting)
-  private handleTestAPI = (req: Request, res: Response) => {
-    try {
-      const { imo } = req.params;
-      const myShipTrackingService =
-        require("../services/myshiptracking.service").default;
-
-      myShipTrackingService
-        .fetchVesselPositionByIMO(imo)
-        .then((result: any) => {
-          res.status(200).json({
-            success: !!result,
-            message: result
-              ? "Found vessel data"
-              : "No data found for this vessel",
-            data: result,
-          });
-        })
-        .catch((error: any) => {
-          console.error("Error testing API:", error);
-          res.status(500).json({
-            success: false,
-            message: "Error testing API",
-            error: error.message,
-          });
-        });
-    } catch (error) {
-      console.error("Error in handleTestAPI:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-      });
-    }
-  };
 
   getRouter(): Router {
     return this.router;

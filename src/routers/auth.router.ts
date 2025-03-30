@@ -35,6 +35,12 @@ export class AuthRouter {
       "/verify-email/:token",
       this.authController.verifyVendorEmail as unknown as RequestHandler
     );
+    this.router.put(
+      "/approve-vendor/:vendorId",
+      this.authMiddleware.verifyToken as unknown as RequestHandler,
+      this.authMiddleware.isSuperAdmin as unknown as RequestHandler,
+      this.authController.approveVendor as unknown as RequestHandler
+    );
 
     // Super Admin routes
     this.router.post(

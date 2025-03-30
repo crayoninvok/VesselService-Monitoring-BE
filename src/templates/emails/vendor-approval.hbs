@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Your Email - VessM</title>
+    <title>Account Approved - VessM</title>
     <style>
         :root {
             --primary: #0056b3;
@@ -14,6 +14,7 @@
             --gray-dark: #555555;
             --text-dark: #333333;
             --text-light: #ffffff;
+            --success: #2e8540;
         }
         
         body {
@@ -35,7 +36,7 @@
         }
         
         .header {
-            background-color: var(--primary);
+            background-color: var(--success);
             padding: 30px 20px;
             text-align: center;
         }
@@ -64,7 +65,7 @@
             font-size: 22px;
             margin-top: 0;
             margin-bottom: 20px;
-            color: var(--primary);
+            color: var(--success);
         }
         
         .button-container {
@@ -86,16 +87,6 @@
         
         .button:hover {
             background-color: var(--primary-dark);
-        }
-        
-        .link-container {
-            background-color: var(--gray-light);
-            padding: 15px;
-            border-radius: 6px;
-            margin: 25px 0;
-            word-break: break-all;
-            font-size: 14px;
-            color: var(--gray-dark);
         }
         
         .info-box {
@@ -158,34 +149,36 @@
             <div class="logo">
                 <img src="https://res.cloudinary.com/dcf4czeat/image/upload/v1742806425/virtual_1_maagcr.png" alt="VessM Logo">
             </div>
-            <h1>Vessel Management System</h1>
+            <h1>Account Approved!</h1>
         </div>
         
         <div class="content">
             <h2 class="greeting">Hello, {{name}}!</h2>
             
-            <p>Thank you for registering as a vendor on the VessM platform. We're excited to have you join our network of maritime service providers.</p>
+            <p>Great news! Your vendor account for <strong>{{companyName}}</strong> on the VessM platform has been approved by our administrators.</p>
             
-            <p>Please verify your email address to complete your registration:</p>
+            <p>You can now log in to your account and start accepting service requests from maritime clients.</p>
             
             <div class="button-container">
-                <a href="{{verificationLink}}" class="button">Verify My Email</a>
-            </div>
-            
-            <p>Or copy this link into your browser:</p>
-            <div class="link-container">
-                {{verificationLink}}
+                <a href="{{loginLink}}" class="button">Log In Now</a>
             </div>
             
             <div class="info-box">
-                <p>After verification, your account will be reviewed by our admin team. You'll receive a notification when your account is approved and you can begin accepting service requests.</p>
+                <p>As an approved vendor, you now have access to all platform features, including:</p>
+                <ul>
+                    <li>View and respond to repair job requests</li>
+                    <li>Submit service reports</li>
+                    <li>Manage your service history</li>
+                    <li>Update your company profile</li>
+                </ul>
             </div>
             
-            <p>If you did not register for this account, please disregard this email.</p>
+            <p>If you have any questions about using the platform, please refer to our vendor guide or contact our support team.</p>
             
             <div class="divider"></div>
             
-            <p>Thank you,<br><strong>The VessM Team</strong></p>
+            <p>Thank you for joining our network of maritime service providers!</p>
+            <p>The VessM Team</p>
         </div>
         
         <div class="footer">

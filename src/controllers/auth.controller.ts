@@ -35,7 +35,7 @@ export class AuthController {
             name,
             phone,
             role: UserRole.SUPER_ADMIN,
-            isActive: true, 
+            isActive: true,
           },
         });
         const superAdmin = await tx.superAdmin.create({
@@ -61,7 +61,7 @@ export class AuthController {
         .json({ message: "Server error during Super Admin creation" });
     }
   }
-  
+
   // Register a new vendor
   async registerVendor(req: Request, res: Response) {
     try {
@@ -345,23 +345,23 @@ export class AuthController {
       return res.status(500).json({ message: "Server error during login" });
     }
   }
-
   // Verify vendor email
   async verifyVendorEmail(req: Request, res: Response) {
     try {
       const { token } = req.params;
-
+      // Make sure there's no trailing slash in BASE_URL_FE
+      const frontendUrl = (process.env.BASE_URL_FE || "http://localhost:3000").replace(/\/$/, "");
+  
       // Find vendor with this token
       const vendor = await prisma.vendor.findFirst({
         where: { verificationToken: token },
       });
-
+  
       if (!vendor) {
-        return res
-          .status(400)
-          .json({ message: "Invalid or expired verification token" });
+        // Redirect to error page on frontend
+        return res.redirect(`${frontendUrl}/verification-error`);
       }
-
+  
       // Update vendor as verified and activate user
       await prisma.$transaction([
         prisma.vendor.update({
@@ -376,18 +376,74 @@ export class AuthController {
           data: { isActive: true },
         }),
       ]);
-
-      return res
-        .status(200)
-        .json({ message: "Email verified successfully. You can now login." });
+  
+      // Redirect to success page
+      return res.redirect(`${frontendUrl}/verification-success`);
     } catch (error) {
       console.error("Verify vendor email error:", error);
-      return res
-        .status(500)
-        .json({ message: "Server error during email verification" });
+      const frontendUrl = (process.env.BASE_URL_FE || "http://localhost:3000").replace(/\/$/, "");
+      return res.redirect(`${frontendUrl}/verification-error`);
     }
   }
-
+  async approveVendor(req: Request, res: Response) {
+    try {
+      const { vendorId } = req.params;
+      const authUser = req.user;
+  
+      if (!authUser || authUser.role !== UserRole.SUPER_ADMIN) {
+        return res.status(403).json({
+          message: "Unauthorized. Only Super Admins can approve vendors",
+        });
+      }
+  
+      // Find vendor
+      const vendor = await prisma.vendor.findUnique({
+        where: { id: vendorId },
+        include: { user: true },
+      });
+  
+      if (!vendor) {
+        return res.status(404).json({ message: "Vendor not found" });
+      }
+  
+      if (vendor.isApproved) {
+        return res.status(400).json({ message: "Vendor already approved" });
+      }
+  
+      // Update vendor as approved
+      await prisma.vendor.update({
+        where: { id: vendorId },
+        data: {
+          isApproved: true,
+          approvedById: authUser.superAdminId,
+        },
+      });
+  
+      // Create notification for the vendor
+      await prisma.notification.create({
+        data: {
+          userId: vendor.userId,
+          title: "Account Approved",
+          message: "Your vendor account has been approved. You can now log in and accept service requests.",
+          type: "APPROVAL_NEEDED",
+        },
+      });
+  
+      // Send approval email
+      await emailService.sendVendorApprovalEmail(
+        vendor.user.email, 
+        vendor.user.name, 
+        vendor.companyName
+      );
+  
+      return res.status(200).json({
+        message: "Vendor approved successfully",
+      });
+    } catch (error) {
+      console.error("Approve vendor error:", error);
+      return res.status(500).json({ message: "Server error during vendor approval" });
+    }
+  }
   // Create a method for SuperAdmins to create ShipAdmins
   async createShipAdmin(req: Request, res: Response) {
     try {
@@ -480,31 +536,31 @@ export class AuthController {
         personInCharge,
         expertise,
       } = req.body;
-  
+
       // Get current user from token to verify they're a SuperAdmin
       const authUser = req.user;
-  
+
       if (!authUser || authUser.role !== UserRole.SUPER_ADMIN) {
         return res.status(403).json({
           message: "Unauthorized. Only Super Admins can create Vendor accounts",
         });
       }
-  
+
       // Check if user already exists
       const existingUser = await prisma.user.findUnique({
         where: { email },
       });
-  
+
       if (existingUser) {
         return res
           .status(400)
           .json({ message: "User with this email already exists" });
       }
-  
+
       // Hash password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
-  
+
       // Create user and vendor in a transaction
       const result = await prisma.$transaction(async (tx) => {
         // Create user
@@ -518,7 +574,7 @@ export class AuthController {
             isActive: true, // Active by default when created by SuperAdmin
           },
         });
-  
+
         // Create vendor profile
         const vendor = await tx.vendor.create({
           data: {
@@ -531,10 +587,10 @@ export class AuthController {
             approvedById: authUser.superAdminId, // Track which admin approved this vendor
           },
         });
-  
+
         return { user, vendor };
       });
-  
+
       // Create notification for the new vendor
       await prisma.notification.create({
         data: {
@@ -544,7 +600,7 @@ export class AuthController {
           type: "GENERAL",
         },
       });
-  
+
       return res.status(201).json({
         message: "Vendor created successfully by Super Admin",
         userId: result.user.id,
@@ -558,98 +614,99 @@ export class AuthController {
     }
   }
   /**
- * Create a ship officer (ShipAdmin) account by SuperAdmin
- * Only SuperAdmins can use this endpoint
- */
-async createOfficerByAdmin(req: Request, res: Response) {
-  try {
-    const { email, password, name, phone, vesselId, position } = req.body;
+   * Create a ship officer (ShipAdmin) account by SuperAdmin
+   * Only SuperAdmins can use this endpoint
+   */
+  async createOfficerByAdmin(req: Request, res: Response) {
+    try {
+      const { email, password, name, phone, vesselId, position } = req.body;
 
-    // Get current user from token to verify they're a SuperAdmin
-    const authUser = req.user;
+      // Get current user from token to verify they're a SuperAdmin
+      const authUser = req.user;
 
-    if (!authUser || authUser.role !== UserRole.SUPER_ADMIN) {
-      return res.status(403).json({
-        message: "Unauthorized. Only Super Admins can create Ship Officer accounts",
-      });
-    }
+      if (!authUser || authUser.role !== UserRole.SUPER_ADMIN) {
+        return res.status(403).json({
+          message:
+            "Unauthorized. Only Super Admins can create Ship Officer accounts",
+        });
+      }
 
-    // Check if vessel exists and belongs to the super admin
-    const vessel = await prisma.vessel.findFirst({
-      where: {
-        id: vesselId,
-        ownerId: authUser.superAdminId,
-      },
-    });
-
-    if (!vessel) {
-      return res
-        .status(404)
-        .json({ message: "Vessel not found or you don't have permission" });
-    }
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      return res
-        .status(400)
-        .json({ message: "User with this email already exists" });
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create user and ship admin in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Create user
-      const user = await tx.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          name,
-          phone,
-          role: UserRole.SHIP_ADMIN,
-          isActive: true, // Ship Officers are active by default when created by SuperAdmin
+      // Check if vessel exists and belongs to the super admin
+      const vessel = await prisma.vessel.findFirst({
+        where: {
+          id: vesselId,
+          ownerId: authUser.superAdminId,
         },
       });
 
-      // Create ship admin profile
-      const shipAdmin = await tx.shipAdmin.create({
+      if (!vessel) {
+        return res
+          .status(404)
+          .json({ message: "Vessel not found or you don't have permission" });
+      }
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUser) {
+        return res
+          .status(400)
+          .json({ message: "User with this email already exists" });
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // Create user and ship admin in a transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Create user
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name,
+            phone,
+            role: UserRole.SHIP_ADMIN,
+            isActive: true, // Ship Officers are active by default when created by SuperAdmin
+          },
+        });
+
+        // Create ship admin profile
+        const shipAdmin = await tx.shipAdmin.create({
+          data: {
+            userId: user.id,
+            vesselId,
+            position,
+          },
+        });
+
+        return { user, shipAdmin };
+      });
+
+      // Create notification for the new ship officer
+      await prisma.notification.create({
         data: {
-          userId: user.id,
-          vesselId,
-          position,
+          userId: result.user.id,
+          title: "Account Created",
+          message: `Your Ship Officer account has been created by ${authUser.email} for vessel ${vessel.name}. You can now log in to the system.`,
+          type: "GENERAL",
         },
       });
 
-      return { user, shipAdmin };
-    });
-
-    // Create notification for the new ship officer
-    await prisma.notification.create({
-      data: {
+      return res.status(201).json({
+        message: "Ship Officer created successfully",
         userId: result.user.id,
-        title: "Account Created",
-        message: `Your Ship Officer account has been created by ${authUser.email} for vessel ${vessel.name}. You can now log in to the system.`,
-        type: "GENERAL",
-      },
-    });
-
-    return res.status(201).json({
-      message: "Ship Officer created successfully",
-      userId: result.user.id,
-      shipAdminId: result.shipAdmin.id,
-      vesselName: vessel.name,
-    });
-  } catch (error) {
-    console.error("Create ship officer error:", error);
-    return res
-      .status(500)
-      .json({ message: "Server error during Ship Officer creation" });
+        shipAdminId: result.shipAdmin.id,
+        vesselName: vessel.name,
+      });
+    } catch (error) {
+      console.error("Create ship officer error:", error);
+      return res
+        .status(500)
+        .json({ message: "Server error during Ship Officer creation" });
+    }
   }
-}
 }
